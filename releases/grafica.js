@@ -2,12 +2,22 @@
  * Point class. A GPoint is composed of two coordinates (x, y) and a text label
  */
 function GPoint() {
-	var x, y, label;
+	var x, y, label, gx;
 
-	if (arguments.length === 3) {
+	if (arguments.length === 4) {
 		x = arguments[0];
 		y = arguments[1];
 		label = arguments[2];
+		gx = arguments[3];
+	} else if (arguments.length === 3 && typeof arguments[2] === "string") {
+		x = arguments[0];
+		y = arguments[1];
+		label = arguments[2];
+	} else if (arguments.length === 3) {
+		x = arguments[0];
+		y = arguments[1];
+		label = "";
+		gx = arguments[2];
 	} else if (arguments.length === 2 && arguments[0] instanceof p5.Vector) {
 		x = arguments[0].x;
 		y = arguments[0].y;
@@ -20,6 +30,7 @@ function GPoint() {
 		x = arguments[0].getX();
 		y = arguments[0].getY();
 		label = arguments[0].getLabel();
+		gx = arguments[0].getGraphics();
 	} else if (arguments.length === 1 && arguments[0] instanceof p5.Vector) {
 		x = arguments[0].x;
 		y = arguments[0].y;
@@ -35,6 +46,7 @@ function GPoint() {
 	this.x = x;
 	this.y = y;
 	this.label = label;
+	this.graphics = gx;
 	this.valid = this.isValidNumber(this.x) && this.isValidNumber(this.y);
 }
 
@@ -43,12 +55,22 @@ GPoint.prototype.isValidNumber = function(number) {
 };
 
 GPoint.prototype.set = function() {
-	var x, y, label;
+	var x, y, label, gx;
 
-	if (arguments.length === 3) {
+	if (arguments.length === 4) {
 		x = arguments[0];
 		y = arguments[1];
 		label = arguments[2];
+		gx = arguments[3];
+	} else if (arguments.length === 3 && typeof arguments[2] === "string") {
+		x = arguments[0];
+		y = arguments[1];
+		label = arguments[2];
+	} else if (arguments.length === 3) {
+		x = arguments[0];
+		y = arguments[1];
+		label = "";
+		gx = arguments[2];
 	} else if (arguments.length === 2 && arguments[0] instanceof p5.Vector) {
 		x = arguments[0].x;
 		y = arguments[0].y;
@@ -61,6 +83,7 @@ GPoint.prototype.set = function() {
 		x = arguments[0].getX();
 		y = arguments[0].getY();
 		label = arguments[0].getLabel();
+		gx = arguments[0].getGraphics();
 	} else if (arguments.length === 1 && arguments[0] instanceof p5.Vector) {
 		x = arguments[0].x;
 		y = arguments[0].y;
@@ -72,6 +95,7 @@ GPoint.prototype.set = function() {
 	this.x = x;
 	this.y = y;
 	this.label = label;
+	this.graphics = gx;
 	this.valid = this.isValidNumber(this.x) && this.isValidNumber(this.y);
 };
 
@@ -87,6 +111,10 @@ GPoint.prototype.setY = function(y) {
 
 GPoint.prototype.setLabel = function(label) {
 	this.label = label;
+};
+
+GPoint.prototype.setGraphics = function(g) {
+	this.graphics = g;
 };
 
 GPoint.prototype.setXY = function() {
@@ -120,6 +148,10 @@ GPoint.prototype.getY = function() {
 
 GPoint.prototype.getLabel = function() {
 	return this.label;
+};
+
+GPoint.prototype.getGraphics = function() {
+	return this.graphics;
 };
 
 GPoint.prototype.getValid = function() {
@@ -1582,20 +1614,24 @@ GHistogram.prototype.setPlotPoints = function(plotPoints) {
 
 	if (this.plotPoints.length === nPoints) {
 		for ( i = 0; i < nPoints; i++) {
+			if (typeof plotPoints[i] !== "undefined")
 			this.plotPoints[i].set(plotPoints[i]);
 		}
 	} else if (this.plotPoints.length > nPoints) {
 		for ( i = 0; i < nPoints; i++) {
+			if (typeof plotPoints[i] !== "undefined")
 			this.plotPoints[i].set(plotPoints[i]);
 		}
 
 		this.plotPoints.splice(nPoints, Number.MAX_VALUE);
 	} else {
 		for ( i = 0; i < this.plotPoints.length; i++) {
+			if (typeof plotPoints[i] !== "undefined")
 			this.plotPoints[i].set(plotPoints[i]);
 		}
 
 		for ( i = this.plotPoints.length; i < nPoints; i++) {
+			if (typeof plotPoints[i] !== "undefined")
 			this.plotPoints[i] = new GPoint(plotPoints[i]);
 		}
 	}
@@ -1706,6 +1742,13 @@ function GLayer(parent, id, dim, xLim, yLim, xLog, yLog) {
 	this.xLog = xLog;
 	this.yLog = yLog;
 
+	// for points' graphics drawing scales
+	this.minDataX = Infinity;
+	this.maxDataX = Infinity;
+	this.minDataY = Infinity;
+	this.maxDataY = Infinity;
+
+
 	// Do some sanity checks
 	if (this.xLog && (this.xLim[0] <= 0 || this.xLim[1] <= 0)) {
 		console.log("One of the limits is negative. This is not allowed in logarithmic scale.");
@@ -1771,56 +1814,100 @@ GLayer.prototype.valueToYPlot = function(y) {
 	}
 };
 
+GLayer.prototype.xLinScale = function() {
+	return this.dim[0] / (this.xLim[1] - this.xLim[0]);
+};
+
+GLayer.prototype.xLogScale = function() {
+	return this.dim[0] / Math.log(this.xLim[1] / this.xLim[0]);
+};
+
+GLayer.prototype.yLinScale = function() {
+	return -this.dim[1] / (this.yLim[1] - this.yLim[0]);
+};
+
+GLayer.prototype.yLogScale = function() {
+	return -this.dim[1] / Math.log(this.yLim[1] / this.yLim[0]);
+};
+
+GLayer.prototype.updateMinMaxPointVals = function(x, y) {
+	this.minDataX = (this.minDataX === Infinity) ? x : Math.min(x, this.minDataX);
+	this.maxDataX = (this.maxDataX === Infinity) ? x : Math.max(x, this.maxDataX);
+	this.minDataY = (this.minDataY === Infinity) ? y : Math.min(y, this.minDataY);
+	this.maxDataY = (this.maxDataY === Infinity) ? y : Math.max(y, this.maxDataY);
+}
+
+GLayer.prototype.xDrawingScale = function() {
+	if (this.maxDataX === this.minDataX)
+		return 1;
+
+	const pXRange = this.maxDataX - this.minDataX;
+	const visXRange = this.xLim[1] - this.xLim[0];
+	const sx = pXRange / visXRange;
+	return sx;
+};
+
+GLayer.prototype.yDrawingScale = function() {
+	if (this.maxDataY === this.minDataY)
+		return 1;
+
+	const pYRange = this.maxDataY - this.minDataY;
+	const visYRange = this.yLim[1] - this.yLim[0];
+	const sy = pYRange / visYRange;
+	return sy;
+};
+
+GLayer.prototype.xUnityScale = function() {
+	if (this.maxDataX === this.minDataX)
+		return 1;
+	return this.valueToXPlot(1) - this.valueToXPlot(0);
+};
+
+GLayer.prototype.yUnityScale = function() {
+	if (this.maxDataY === this.minDataY)
+		return 1;
+	return this.valueToYPlot(1) - this.valueToYPlot(0);
+};
+
 GLayer.prototype.valueToPlot = function() {
 	if (arguments.length === 2) {
 		return [this.valueToXPlot(arguments[0]), this.valueToYPlot(arguments[1])];
 	} else if (arguments.length === 1 && arguments[0] instanceof GPoint) {
-		return new GPoint(this.valueToXPlot(arguments[0].getX()), this.valueToYPlot(arguments[0].getY()), arguments[0].getLabel());
+		return new GPoint(this.valueToXPlot(arguments[0].getX()), this.valueToYPlot(arguments[0].getY()), 
+						  arguments[0].getLabel(), arguments[0].getGraphics());
 	} else if (arguments.length === 1 && arguments[0] instanceof Array && arguments[0][0] instanceof GPoint) {
-		var xScalingFactor, yScalingFactor, point, xPlot, yPlot, i;
+		var point, xPlot, yPlot, i;
 		var nPoints = arguments[0].length;
 		var plotPts = [];
 
 		// Go case by case. More code, but it's faster
 		if (this.xLog && this.yLog) {
-			xScalingFactor = this.dim[0] / Math.log(this.xLim[1] / this.xLim[0]);
-			yScalingFactor = -this.dim[1] / Math.log(this.yLim[1] / this.yLim[0]);
-
 			for ( i = 0; i < nPoints; i++) {
 				point = arguments[0][i];
-				xPlot = Math.log(point.getX() / this.xLim[0]) * xScalingFactor;
-				yPlot = Math.log(point.getY() / this.yLim[0]) * yScalingFactor;
-				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel());
+				xPlot = Math.log(point.getX() / this.xLim[0]) * this.xLogScale();
+				yPlot = Math.log(point.getY() / this.yLim[0]) * this.yLogScale();
+				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel(), point.getGraphics());
 			}
 		} else if (this.xLog) {
-			xScalingFactor = this.dim[0] / Math.log(this.xLim[1] / this.xLim[0]);
-			yScalingFactor = -this.dim[1] / (this.yLim[1] - this.yLim[0]);
-
 			for ( i = 0; i < nPoints; i++) {
 				point = arguments[0][i];
-				xPlot = Math.log(point.getX() / this.xLim[0]) * xScalingFactor;
-				yPlot = (point.getY() - this.yLim[0]) * yScalingFactor;
-				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel());
+				xPlot = Math.log(point.getX() / this.xLim[0]) * this.xLogScale();
+				yPlot = (point.getY() - this.yLim[0]) * this.yLinScale();
+				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel(), point.getGraphics());
 			}
 		} else if (this.yLog) {
-			xScalingFactor = this.dim[0] / (this.xLim[1] - this.xLim[0]);
-			yScalingFactor = -this.dim[1] / Math.log(this.yLim[1] / this.yLim[0]);
-
 			for ( i = 0; i < nPoints; i++) {
 				point = arguments[0][i];
-				xPlot = (point.getX() - this.xLim[0]) * xScalingFactor;
-				yPlot = Math.log(point.getY() / this.yLim[0]) * yScalingFactor;
-				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel());
+				xPlot = (point.getX() - this.xLim[0]) * this.xLinScale();
+				yPlot = Math.log(point.getY() / this.yLim[0]) * this.yLogScale();
+				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel(), point.getGraphics());
 			}
 		} else {
-			xScalingFactor = this.dim[0] / (this.xLim[1] - this.xLim[0]);
-			yScalingFactor = -this.dim[1] / (this.yLim[1] - this.yLim[0]);
-
 			for ( i = 0; i < nPoints; i++) {
 				point = arguments[0][i];
-				xPlot = (point.getX() - this.xLim[0]) * xScalingFactor;
-				yPlot = (point.getY() - this.yLim[0]) * yScalingFactor;
-				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel());
+				xPlot = (point.getX() - this.xLim[0]) * this.xLinScale();
+				yPlot = (point.getY() - this.yLim[0]) * this.yLinScale();
+				plotPts[i] = new GPoint(xPlot, yPlot, point.getLabel(), point.getGraphics());
 			}
 		}
 
@@ -1831,7 +1918,7 @@ GLayer.prototype.valueToPlot = function() {
 };
 
 GLayer.prototype.updatePlotPoints = function() {
-	var xScalingFactor, yScalingFactor, point, xPlot, yPlot, i;
+	var point, xPlot, yPlot, i;
 	var nPoints = this.points.length;
 
 	// Update the plotPoints array size if necessary
@@ -1845,44 +1932,32 @@ GLayer.prototype.updatePlotPoints = function() {
 
 	// Go case by case. More code, but it should be faster
 	if (this.xLog && this.yLog) {
-		xScalingFactor = this.dim[0] / Math.log(this.xLim[1] / this.xLim[0]);
-		yScalingFactor = -this.dim[1] / Math.log(this.yLim[1] / this.yLim[0]);
-
 		for ( i = 0; i < nPoints; i++) {
 			point = this.points[i];
-			xPlot = Math.log(point.getX() / this.xLim[0]) * xScalingFactor;
-			yPlot = Math.log(point.getY() / this.yLim[0]) * yScalingFactor;
-			this.plotPoints[i].set(xPlot, yPlot, point.getLabel());
+			xPlot = Math.log(point.getX() / this.xLim[0]) * this.xLogScale();
+			yPlot = Math.log(point.getY() / this.yLim[0]) * this.yLogScale();
+			this.plotPoints[i].set(xPlot, yPlot, point.getLabel(), point.getGraphics());
 		}
 	} else if (this.xLog) {
-		xScalingFactor = this.dim[0] / Math.log(this.xLim[1] / this.xLim[0]);
-		yScalingFactor = -this.dim[1] / (this.yLim[1] - this.yLim[0]);
-
 		for ( i = 0; i < nPoints; i++) {
 			point = this.points[i];
-			xPlot = Math.log(point.getX() / this.xLim[0]) * xScalingFactor;
-			yPlot = (point.getY() - this.yLim[0]) * yScalingFactor;
-			this.plotPoints[i].set(xPlot, yPlot, point.getLabel());
+			xPlot = Math.log(point.getX() / this.xLim[0]) * this.xLogScale();
+			yPlot = (point.getY() - this.yLim[0]) * this.yLinScale();
+			this.plotPoints[i].set(xPlot, yPlot, point.getLabel(), point.getGraphics());
 		}
 	} else if (this.yLog) {
-		xScalingFactor = this.dim[0] / (this.xLim[1] - this.xLim[0]);
-		yScalingFactor = -this.dim[1] / Math.log(this.yLim[1] / this.yLim[0]);
-
 		for ( i = 0; i < nPoints; i++) {
 			point = this.points[i];
-			xPlot = (point.getX() - this.xLim[0]) * xScalingFactor;
-			yPlot = Math.log(point.getY() / this.yLim[0]) * yScalingFactor;
-			this.plotPoints[i].set(xPlot, yPlot, point.getLabel());
+			xPlot = (point.getX() - this.xLim[0]) * this.xLinScale();
+			yPlot = Math.log(point.getY() / this.yLim[0]) * this.yLogScale();
+			this.plotPoints[i].set(xPlot, yPlot, point.getLabel(), point.getGraphics());
 		}
 	} else {
-		xScalingFactor = this.dim[0] / (this.xLim[1] - this.xLim[0]);
-		yScalingFactor = -this.dim[1] / (this.yLim[1] - this.yLim[0]);
-
 		for ( i = 0; i < nPoints; i++) {
 			point = this.points[i];
-			xPlot = (point.getX() - this.xLim[0]) * xScalingFactor;
-			yPlot = (point.getY() - this.yLim[0]) * yScalingFactor;
-			this.plotPoints[i].set(xPlot, yPlot, point.getLabel());
+			xPlot = (point.getX() - this.xLim[0]) * this.xLinScale();
+			yPlot = (point.getY() - this.yLim[0]) * this.yLinScale();
+			this.plotPoints[i].set(xPlot, yPlot, point.getLabel(), point.getGraphics());
 		}
 	}
 };
@@ -2176,12 +2251,43 @@ GLayer.prototype.drawPoints = function() {
 		nPoints = this.plotPoints.length;
 		var nColors = this.pointColors.length;
 		var nSizes = this.pointSizes.length;
-
+		
 		this.parent.push();
 		this.parent.ellipseMode(this.parent.CENTER);
 		this.parent.noStroke();
+		
+		//debugger;
+		let ownGraphics = false; // assume all points in a layer should have own draw method
+		for ( i = 0; i < nPoints; i++) { 
+			// TODO looks like a user must provide a dense set of points [0,n] before drawing.
+			//console.log(typeof this.plotPoints[0]); // fuck this is annoying shit
+			//console.log(this.plotPoints[0]); // no [0]th element is still object
+			if (!this.inside[i]) 
+				continue;
+			else if (typeof this.plotPoints[0].getGraphics() !== "undefined"
+				&& (typeof this.plotPoints[0].getGraphics() !== "string")
+				&& this.plotPoints[0].getGraphics().hasOwnProperty('draw')){
+					ownGraphics = true;
+					break;
+				}
+		}
 
-		if (nColors === 1 && nSizes === 1) {
+		if (ownGraphics) {
+			const xScale = this.xDrawingScale();
+			const yScale = this.yDrawingScale();
+			const xUnityScale = this.xUnityScale();
+			const yUnityScale = this.yUnityScale();
+			for ( i = 0; i < nPoints; i++) {
+				if (!this.inside[i]) continue;
+				var p = this.plotPoints[i];
+				p.getGraphics().draw(this, this.parent, 
+									p.getX(), p.getY(),
+									xScale, yScale, 
+									xUnityScale, yUnityScale,
+									i); 
+			}
+
+		} else if (nColors === 1 && nSizes === 1) {
 			this.parent.fill(this.pointColors[0]);
 
 			for ( i = 0; i < nPoints; i++) {
@@ -2233,7 +2339,7 @@ GLayer.prototype.drawPoints = function() {
 };
 
 GLayer.prototype.drawPoint = function() {
-	var point, pointColor, pointSize, pointImg;
+	var point, pointColor, pointSize, pointImg, pointGraphics;
 
 	if (arguments.length === 3) {
 		point = arguments[0];
@@ -2242,10 +2348,14 @@ GLayer.prototype.drawPoint = function() {
 	} else if (arguments.length === 2 && arguments[1] instanceof p5.Image) {
 		point = arguments[0];
 		pointImg = arguments[1];
+	} else if (arguments.length === 2) {
+		point = arguments[0];
+		pointGraphics = arguments[1];
 	} else if (arguments.length === 1) {
 		point = arguments[0];
 		pointColor = this.pointColors[0];
 		pointSize = this.pointSizes[0];
+		pointGraphics = point.getGraphics();
 	} else {
 		throw new Error("GLayer.drawPoint(): signature not supported");
 	}
@@ -2256,7 +2366,20 @@ GLayer.prototype.drawPoint = function() {
 	if (this.isInside(xPlot, yPlot)) {
 		this.parent.push();
 
-		if ( typeof pointImg !== "undefined") {
+		if (typeof pointGraphics !== "undefined"
+			&& !(typeof pointGraphics === "string")
+			&& pointGraphics.hasOwnProperty('draw')
+			) {
+			const xScale = this.xDrawingScale();
+			const yScale = this.yDrawingScale();
+			const xUnityScale = this.xUnityScale();
+			const yUnityScale = this.yUnityScale();
+			point.getGraphics().draw(this, this.parent, 
+				point.getX(), point.getY(), 
+				xScale, yScale,
+				xUnityScale, yUnityScale,
+				0);// TODO id
+		} else if ( typeof pointImg !== "undefined") {
 			this.parent.imageMode(this.parent.CENTER);
 			this.parent.image(pointImg, xPlot, yPlot);
 		} else {
@@ -2764,11 +2887,20 @@ GLayer.prototype.drawLabel = function(point) {
 
 		// Draw the background
 		this.parent.fill(this.labelBgColor);
-		this.parent.rect(xLabelPos - delta, yLabelPos - this.fontSize - delta, this.parent.textWidth(point.getLabel()) + 2 * delta, this.fontSize + 2 * delta);
+		const label = point.getLabel();
+		const labelLines = label.split("\n");
+		const numLines = labelLines.length;
+		const maxLine = labelLines.reduce(function (a, b) { 
+							return a.length > b.length ? a : b; });
+		const txtW = this.parent.textWidth(maxLine) + 2 * delta;
+		const txtH = this.fontSize * numLines + 2 * delta;
+		this.parent.rect(xLabelPos - delta, 
+						 yLabelPos - this.fontSize * numLines - 2 * delta, 
+						 txtW, txtH);
 
 		// Draw the text
 		this.parent.fill(this.fontColor);
-		this.parent.text(point.getLabel(), xLabelPos, yLabelPos);
+		this.parent.text(label, xLabelPos, yLabelPos);
 		this.parent.pop();
 	}
 };
@@ -3134,7 +3266,11 @@ GLayer.prototype.setPoints = function(points) {
 	}
 
 	for ( i = 0; i < nPoints; i++) {
-		this.points[i].set(points[i]);
+		let p = points[i];
+		if (typeof p !== "undefined") {
+			this.updateMinMaxPointVals(p.getX(), p.getY());
+			this.points[i].set(p);
+		}
 	}
 
 	this.updatePlotPoints();
@@ -3147,35 +3283,57 @@ GLayer.prototype.setPoints = function(points) {
 
 GLayer.prototype.setPoint = function() {
 	var index, x, y, label;
+	var gx;
 	var nPoints = this.points.length;
 
-	if (arguments.length === 4) {
+	if (arguments.length === 5) {
 		index = arguments[0];
 		x = arguments[1];
 		y = arguments[2];
 		label = arguments[3];
+		gx = arguments[4];
+	} else if (arguments.length === 4 && typeof arguments[3] === "string") {
+		index = arguments[0];
+		x = arguments[1];
+		y = arguments[2];
+		label = arguments[3];
+	} else if (arguments.length === 4) {
+		index = arguments[0];
+		x = arguments[1];
+		y = arguments[2];
+		label = "";
+		gx = arguments[3];
 	} else if (arguments.length === 3) {
 		index = arguments[0];
 		x = arguments[1];
 		y = arguments[2];
-		label = (index < nPoints) ? this.points[index].getLabel() : "";
+		if (index < nPoints) {
+			label = this.points[index].getLabel();
+			gx = this.points[index].getGraphics();
+		}
+		else {
+			label = "";
+		}
 	} else if (arguments.length === 2) {
 		index = arguments[0];
 		x = arguments[1].getX();
 		y = arguments[1].getY();
 		label = arguments[1].getLabel();
+		gx = arguments[1].getGraphics();
 	} else {
 		throw new Error("GLayer.setPoint(): signature not supported");
 	}
 
 	if (index < nPoints) {
-		this.points[index].set(x, y, label);
-		this.plotPoints[index].set(this.valueToXPlot(x), this.valueToYPlot(y), label);
+		this.points[index].set(x, y, label, gx);
+		this.plotPoints[index].set(this.valueToXPlot(x), this.valueToYPlot(y), label, gx);
 		this.inside[index] = this.isInside(this.plotPoints[index]);
+		this.updateMinMaxPointVals(x, y);
 	} else if (index === nPoints) {
-		this.points[index] = new GPoint(x, y, label);
-		this.plotPoints[index] = new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label);
+		this.points[index] = new GPoint(x, y, label, gx);
+		this.plotPoints[index] = new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label, gx);
 		this.inside[index] = this.isInside(this.plotPoints[index]);
+		this.updateMinMaxPointVals(x, y);
 	} else {
 		throw new Error("GLayer.setPoint(): the index position is outside the array size");
 	}
@@ -3186,12 +3344,22 @@ GLayer.prototype.setPoint = function() {
 };
 
 GLayer.prototype.addPoint = function() {
-	var x, y, label;
+	var x, y, label, gx;
 
-	if (arguments.length === 3) {
+	if (arguments.length === 4) {
 		x = arguments[0];
 		y = arguments[1];
 		label = arguments[2];
+		gx = arguments[3];
+	} else if (arguments.length === 3 && typeof arguments[2] === "string") {
+		x = arguments[0];
+		y = arguments[1];
+		label = arguments[2];
+	} else if (arguments.length === 3) {
+		x = arguments[0];
+		y = arguments[1];
+		gx = arguments[2];
+		label = "";
 	} else if (arguments.length === 2) {
 		x = arguments[0];
 		y = arguments[1];
@@ -3200,12 +3368,13 @@ GLayer.prototype.addPoint = function() {
 		x = arguments[0].getX();
 		y = arguments[0].getY();
 		label = arguments[0].getLabel();
+		gx = arguments[0].getGraphics();
 	} else {
 		throw new Error("GLayer.addPoint(): signature not supported");
 	}
 
-	this.points.push(new GPoint(x, y, label));
-	this.plotPoints.push(new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label));
+	this.points.push(new GPoint(x, y, label, gx));
+	this.plotPoints.push(new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label, gx));
 	this.inside.push(this.isInside(this.plotPoints[this.plotPoints.length - 1]));
 
 	if ( typeof this.hist !== "undefined") {
@@ -3220,7 +3389,8 @@ GLayer.prototype.addPoints = function(newPoints) {
 	for (var i = 0; i < nNewPoints; i++) {
 		newPoint = newPoints[i];
 		this.points.push(new GPoint(newPoint));
-		this.plotPoints.push(new GPoint(this.valueToXPlot(newPoint.getX()), this.valueToYPlot(newPoint.getY()), newPoint.getLabel()));
+		this.plotPoints.push(new GPoint(this.valueToXPlot(newPoint.getX()), this.valueToYPlot(newPoint.getY()), 
+										newPoint.getLabel(), newPoint.getGraphics()));
 		this.inside.push(this.isInside(this.plotPoints[this.plotPoints.length - 1]));
 	}
 
@@ -3230,13 +3400,25 @@ GLayer.prototype.addPoints = function(newPoints) {
 };
 
 GLayer.prototype.addPointAtIndexPos = function() {
-	var index, x, y, label;
+	var index, x, y, label, gx;
 
 	if (arguments.length === 4) {
 		index = arguments[0];
 		x = arguments[1];
 		y = arguments[2];
 		label = arguments[3];
+		gx = arguments[4];
+	} else if (arguments.length === 4 && typeof arguments[3] === "string") {
+		index = arguments[0];
+		x = arguments[1];
+		y = arguments[2];
+		label = arguments[3];
+	} else if (arguments.length === 4) {
+		index = arguments[0];
+		x = arguments[1];
+		y = arguments[2];
+		gx = arguments[3];
+		label = "";
 	} else if (arguments.length === 3) {
 		index = arguments[0];
 		x = arguments[1];
@@ -3247,13 +3429,14 @@ GLayer.prototype.addPointAtIndexPos = function() {
 		x = arguments[1].getX();
 		y = arguments[1].getY();
 		label = arguments[1].getLabel();
+		gx = arguments[1].getGraphics();
 	} else {
 		throw new Error("GLayer.addPointAtIndexPos(): signature not supported");
 	}
 
 	if (index <= this.points.length) {
-		this.points.splice(index, 0, new GPoint(x, y, label));
-		this.plotPoints.splice(index, 0, new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label));
+		this.points.splice(index, 0, new GPoint(x, y, label, gx));
+		this.plotPoints.splice(index, 0, new GPoint(this.valueToXPlot(x), this.valueToYPlot(y), label, gx));
 		this.inside.splice(index, 0, this.isInside(this.plotPoints[index]));
 
 		if ( typeof this.hist !== "undefined") {
@@ -4737,7 +4920,9 @@ GPlot.prototype.setPoints = function() {
 };
 
 GPlot.prototype.setPoint = function() {
-	if (arguments.length === 5) {
+	if (arguments.length === 6) {
+		this.getLayer(arguments[5]).setPoint(arguments[0], arguments[1], arguments[2], arguments[3], arguments[4]);
+	} else if (arguments.length === 5) {
 		this.getLayer(arguments[4]).setPoint(arguments[0], arguments[1], arguments[2], arguments[3]);
 	} else if (arguments.length === 4) {
 		this.mainLayer.setPoint(arguments[0], arguments[1], arguments[2], arguments[3]);
